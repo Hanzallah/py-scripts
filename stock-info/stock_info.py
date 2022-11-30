@@ -3,7 +3,7 @@ import os
 import sqlite3
 import praw
 import yfinance as yf
-from dotenv import load_dotenv, find_dotenv
+from dotenv import load_dotenv
 
 class Stock:
     def __init__(self, name, sector, price, symbol, revenue) -> None:
@@ -27,12 +27,15 @@ class StockHandler:
 
         self.wsb_subreddit = reddit.subreddit('wallstreetbets')
 
-
     def get_top_stocks(self, limit):
         None
     
-    def get_stock_information():
+    def record_stock_information():
         None
+
+    def get_stock(ticker):
+        ticker_info = yf.Ticker(ticker)
+        return Stock(ticker_info.info['shortName'])
     
 class DatabaseHandler:
     def __init__(self, db_name, table_name) -> None:
