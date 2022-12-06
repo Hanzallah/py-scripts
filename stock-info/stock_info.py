@@ -1,9 +1,13 @@
 
 import os
+import re
 import sqlite3
 import praw
+import nltk
 import yfinance as yf
 from dotenv import load_dotenv
+from collections import Counter
+from praw.models import MoreComments
 
 class Stock:
     def __init__(self, name, sector, price, symbol, revenue) -> None:
@@ -26,10 +30,28 @@ class StockHandler:
         )
 
         self.wsb_subreddit = reddit.subreddit('wallstreetbets')
+        self.counter_dict = {}
+        self.top_ticker_symbols = []
 
     def get_top_stocks(self, limit):
-        None
-    
+        Nouns = lambda pos:pos[:2] == "NN"
+
+        for submissions in self.wsb_subreddit.hot(limit):
+            for top_level_comment in submissions.comments:
+                if isinstance(top_level_comment, MoreComments):
+                    continue
+                
+                stock_tickers = nltk.word_tokenize(top_level_comment.body)
+                stock_ticker_list = list(set([
+                    word for (word, pos) in nltk.pos_tag(stock_tickers) if Nouns(pos) and re.findall(r'[A-Z]+\b', word) and len(yf.Ticker(word).info) > 10 and not word.startswith("/u/")
+                ]))
+                self.top_ticker_symbols += stock_ticker_list
+        
+        self.counter_dict = dict(Counter(self.top_ticker_symbols))
+
+        return self.counter_dict
+
+                
     def record_stock_information():
         None
 
