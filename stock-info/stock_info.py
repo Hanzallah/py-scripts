@@ -10,15 +10,27 @@ from collections import Counter
 from praw.models import MoreComments
 
 class Stock:
-    def __init__(self, name, sector, price, symbol, revenue) -> None:
+    def __init__(self, name, sector, price, symbol, revenue, quoteType, prevClose) -> None:
         self.name = name
         self.sector = sector
         self.price = price
         self.symbol = symbol
         self.revenue = revenue
+        self.quoteType = quoteType
+        self.prevClose = prevClose
+    
+
+    def set_sector(self, sector) -> None:
+        self.sector = sector
+    
+    def set_price(self, price) -> None:
+        self.price = price
+    
+    def set_revenue(self, revenue) -> None:
+        self.revenue = revenue
 
 class StockHandler:
-    def __init__(self) -> None:
+    def __init__(self, limit=5) -> None:
         load_dotenv()
 
         reddit = praw.Reddit(
@@ -30,13 +42,15 @@ class StockHandler:
         )
 
         self.wsb_subreddit = reddit.subreddit('wallstreetbets')
+        self.dbHandler = DatabaseHandler("stock_info.db", "Stock_Info")
         self.counter_dict = {}
         self.top_ticker_symbols = []
+        self.limit = limit
 
-    def get_top_stocks(self, limit):
+    def get_top_stocks(self):
         Nouns = lambda pos:pos[:2] == "NN"
 
-        for submissions in self.wsb_subreddit.hot(limit):
+        for submissions in self.wsb_subreddit.hot(self.limit):
             for top_level_comment in submissions.comments:
                 if isinstance(top_level_comment, MoreComments):
                     continue
@@ -52,12 +66,34 @@ class StockHandler:
         return self.counter_dict
 
                 
-    def record_stock_information():
-        None
+    def record_stock_information(self):
+        top_limit = sorted(self.counter_dict, key=self.counter_dict.get, reverse=True)[:self.limit]
 
-    def get_stock(ticker):
+        for ticker in top_limit:
+            stock = self.get_stock(ticker)
+            self.dbHandler.db_create()
+
+            company_data_conn = self.dbHandler.db_fetch(stock)
+            company_check = company_data_conn.fetchall()
+            length_check = [i for i in company_check]
+
+            if stock.quoteType == 'ETF':
+                stock.set_sector('No sector (ETF)')
+                stock.set_price(stock.prevClose)
+                stock.set_revenue('N/A')
+            
+            if len(length_check) > 0:
+                self.dbHandler.db_update(stock)
+            else:
+                self.dbHandler.db_save(stock)
+
+    def get_stock(self, ticker):
         ticker_info = yf.Ticker(ticker)
-        return Stock(ticker_info.info['shortName'])
+        return Stock(
+            ticker_info.info['shortName'], ticker_info.info['sector'], ticker_info.info['currentPrice'], 
+            ticker_info.info['symbol'], ticker_info.info['revenue'], 
+            ticker_info.info['quoteType'], ticker_info.info['previousClose']
+        )
     
 class DatabaseHandler:
     def __init__(self, db_name, table_name) -> None:
@@ -65,7 +101,7 @@ class DatabaseHandler:
         self.db_cursor = self.db_conn.cursor()
         self.table_name = table_name
 
-    def db_save_info(self, stock: Stock):
+    def db_save(self, stock: Stock):
         self.db_cursor.execute(
             """
             INSERT INTO ?
@@ -95,14 +131,13 @@ class DatabaseHandler:
         self.db_conn.commit()
 
     def db_update(self, stock: Stock):
-        self.db_cursor.execute(
+        return self.db_cursor.execute(
             f"""
             UPDATE Stock_information
             SET Stock_Price = {stock.price}
             WHERE Symbol = '{stock.symbol}';
             """
         )
-        self.db_conn.commit()
     
     def db_fetch(self, stock: Stock):
         self.db_cursor.execute(
