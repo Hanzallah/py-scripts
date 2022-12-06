@@ -94,5 +94,25 @@ class DatabaseHandler:
         )
         self.db_conn.commit()
 
+    def db_update(self, stock: Stock):
+        self.db_cursor.execute(
+            f"""
+            UPDATE Stock_information
+            SET Stock_Price = {stock.price}
+            WHERE Symbol = '{stock.symbol}';
+            """
+        )
+        self.db_conn.commit()
+    
+    def db_fetch(self, stock: Stock):
+        self.db_cursor.execute(
+            f"""
+            SELECT * FROM Stock_information
+            SET Stock_Price = {stock.price}
+            WHERE Company_Name = '{stock.name}';
+            """
+        )
+        self.db_conn.commit()
+
 if __name__ == '__main__':
-    StockHandler()
+    stockHandler = StockHandler()
