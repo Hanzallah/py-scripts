@@ -61,7 +61,6 @@ class StockHandler:
                     word for (word, pos) in nltk.pos_tag(stock_tickers) if Nouns(pos) and re.findall(r'[A-Z]+\b', word) and len(yf.Ticker(word).info) > 10 and not word.startswith("/u/") and word not in reserved
                 ]))
                 self.top_ticker_symbols += stock_ticker_list
-                break
         
         self.counter_dict = dict(Counter(self.top_ticker_symbols))
 
@@ -70,7 +69,6 @@ class StockHandler:
                 
     def __record_stock_information__(self):
         top_limit = sorted(self.counter_dict, key=self.counter_dict.get, reverse=True)[:self.limit]
-        print(top_limit)
         for ticker in top_limit:
             stock = self.__get_stock__(ticker)
             self.dbHandler.db_create()
@@ -125,8 +123,14 @@ class DatabaseHandler:
             (
                 Company_Name, Sector, Stock_Price, Symbol, Total_Revenue
             )
-            VALUES ({stock.name}, {stock.sector}, {stock.price}, {stock.symbol}, {stock.revenue});
-            """
+            VALUES (?, ?, ?, ?, ?);
+            """, (
+                stock.name,
+                stock.sector,
+                stock.price,
+                stock.symbol,
+                stock.revenue
+            )
         )
         self.db_conn.commit()
 
