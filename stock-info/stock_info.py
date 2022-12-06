@@ -47,7 +47,7 @@ class StockHandler:
         self.top_ticker_symbols = []
         self.limit = limit
 
-    def get_top_stocks(self):
+    def run_top_stocks(self):
         Nouns = lambda pos:pos[:2] == "NN"
 
         for submissions in self.wsb_subreddit.hot(self.limit):
@@ -63,14 +63,14 @@ class StockHandler:
         
         self.counter_dict = dict(Counter(self.top_ticker_symbols))
 
-        return self.counter_dict
+        self.__record_stock_information__()
 
                 
-    def record_stock_information(self):
+    def __record_stock_information__(self):
         top_limit = sorted(self.counter_dict, key=self.counter_dict.get, reverse=True)[:self.limit]
 
         for ticker in top_limit:
-            stock = self.get_stock(ticker)
+            stock = self.__get_stock__(ticker)
             self.dbHandler.db_create()
 
             company_data_conn = self.dbHandler.db_fetch(stock)
@@ -87,7 +87,7 @@ class StockHandler:
             else:
                 self.dbHandler.db_save(stock)
 
-    def get_stock(self, ticker):
+    def __get_stock__(self, ticker):
         ticker_info = yf.Ticker(ticker)
         return Stock(
             ticker_info.info['shortName'], ticker_info.info['sector'], ticker_info.info['currentPrice'], 
@@ -151,3 +151,4 @@ class DatabaseHandler:
 
 if __name__ == '__main__':
     stockHandler = StockHandler()
+    stockHandler.run_top_stocks()
