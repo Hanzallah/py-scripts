@@ -49,17 +49,19 @@ class StockHandler:
 
     def run_top_stocks(self):
         Nouns = lambda pos:pos[:2] == "NN"
+        reserved = ['WSB']
 
-        for submissions in self.wsb_subreddit.hot(self.limit):
+        for submissions in self.wsb_subreddit.hot(limit=self.limit):
             for top_level_comment in submissions.comments:
                 if isinstance(top_level_comment, MoreComments):
                     continue
                 
                 stock_tickers = nltk.word_tokenize(top_level_comment.body)
                 stock_ticker_list = list(set([
-                    word for (word, pos) in nltk.pos_tag(stock_tickers) if Nouns(pos) and re.findall(r'[A-Z]+\b', word) and len(yf.Ticker(word).info) > 10 and not word.startswith("/u/")
+                    word for (word, pos) in nltk.pos_tag(stock_tickers) if Nouns(pos) and re.findall(r'[A-Z]+\b', word) and len(yf.Ticker(word).info) > 10 and not word.startswith("/u/") and word not in reserved
                 ]))
                 self.top_ticker_symbols += stock_ticker_list
+                break
         
         self.counter_dict = dict(Counter(self.top_ticker_symbols))
 
@@ -68,7 +70,7 @@ class StockHandler:
                 
     def __record_stock_information__(self):
         top_limit = sorted(self.counter_dict, key=self.counter_dict.get, reverse=True)[:self.limit]
-
+        print(top_limit)
         for ticker in top_limit:
             stock = self.__get_stock__(ticker)
             self.dbHandler.db_create()
@@ -91,7 +93,7 @@ class StockHandler:
         ticker_info = yf.Ticker(ticker)
         return Stock(
             ticker_info.info['shortName'], ticker_info.info['sector'], ticker_info.info['currentPrice'], 
-            ticker_info.info['symbol'], ticker_info.info['revenue'], 
+            ticker_info.info['symbol'], ticker_info.info['totalRevenue'], 
             ticker_info.info['quoteType'], ticker_info.info['previousClose']
         )
     
@@ -101,23 +103,9 @@ class DatabaseHandler:
         self.db_cursor = self.db_conn.cursor()
         self.table_name = table_name
 
-    def db_save(self, stock: Stock):
-        self.db_cursor.execute(
-            """
-            INSERT INTO ?
-            (
-                Company_Name, Sector, Stock_Price, Symbol, Total_Revenue
-            )
-            VALUES (?, ?, ?, ?, ?);
-            """, (
-                stock.name, stock.sector, stock.price, stock.symbol, stock.revenue
-            )
-        )
-        self.db_conn.commit()
-
     def db_create(self):
         self.db_cursor.execute(
-            """"CREATE TABLE IF NOT EXISTS ?
+            f"""CREATE TABLE IF NOT EXISTS {self.table_name}
             (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 Company_Name TEXT,
@@ -126,28 +114,40 @@ class DatabaseHandler:
                 Symbol TEXT,
                 Total_Revenue INTEGER
             );
-            """, (self.table_name)
+            """
+        )
+        self.db_conn.commit()
+
+    def db_save(self, stock: Stock):
+        self.db_cursor.execute(
+            f"""
+            INSERT INTO {self.table_name}
+            (
+                Company_Name, Sector, Stock_Price, Symbol, Total_Revenue
+            )
+            VALUES ({stock.name}, {stock.sector}, {stock.price}, {stock.symbol}, {stock.revenue});
+            """
         )
         self.db_conn.commit()
 
     def db_update(self, stock: Stock):
-        return self.db_cursor.execute(
+        self.db_cursor.execute(
             f"""
-            UPDATE Stock_information
+            UPDATE {self.table_name}
             SET Stock_Price = {stock.price}
             WHERE Symbol = '{stock.symbol}';
             """
         )
+        self.db_conn.commit()
     
     def db_fetch(self, stock: Stock):
-        self.db_cursor.execute(
+        return self.db_cursor.execute(
             f"""
-            SELECT * FROM Stock_information
-            SET Stock_Price = {stock.price}
+            SELECT * FROM {self.table_name}
             WHERE Company_Name = '{stock.name}';
             """
         )
-        self.db_conn.commit()
+        
 
 if __name__ == '__main__':
     stockHandler = StockHandler()
